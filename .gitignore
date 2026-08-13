@@ -1,4 +1,10 @@
 .vscode/
 data/
 *.parquet
-__pycache__
+__pycache__/
+logs/
+.env
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
