@@ -3,12 +3,15 @@ from pyspark.sql.functions import (
     col, hour, month, date_format, round as spark_round, avg, count
 )
 from pyspark.sql.functions import unix_timestamp
+import os
+
+BASE_PATH = os.environ.get("DATA_BASE_PATH", ".")
 
 spark = SparkSession.builder.appName("taxi_transform").getOrCreate()
 spark.sparkContext.setLogLevel("ERROR")
 
 #------------------- CARGA (los 12 meses) -------------------
-df = spark.read.parquet("/opt/airflow/data/raw/")
+df = spark.read.parquet(f"{BASE_PATH}/data/raw/")
 
 #------------------- LIMPIEZA -------------------
 df_clean = df.filter(
@@ -57,5 +60,5 @@ print("Filas originales: ", df.count())
 print("Filas después de la limpieza: ", df_clean.count())
 
 # --- ESCRITURA: guardar resultado como Parquet particionado ---
-summary.write.mode("overwrite").parquet("/opt/airflow/data/processed/summary_by_month")
+summary.write.mode("overwrite").parquet(f"{BASE_PATH}/data/processed/summary_by_month")
 print("Escritura completada.")
