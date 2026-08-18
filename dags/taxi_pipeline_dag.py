@@ -12,7 +12,7 @@ def taxi_pipeline():
 
     @task.bash
     def run_transform():
-        return "DATA_BASE_PATH=/opt/airflow python /opt/airflow/transformation/transform.py"
+        return "DATA_BASE_PATH=/opt/airflow S3_ENDPOINT=http://localstack:4566 python /opt/airflow/transformation/transform.py"
 
     run_transform()
 

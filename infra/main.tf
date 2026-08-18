@@ -9,7 +9,7 @@ terraform {
 }
 
 provider "aws" {
-  region                      = "us-east-1"
+  region                      = var.aws_region
   access_key                  = "mock_access_key"
   secret_key                  = "mock_secret_key"
   s3_use_path_style           = true
@@ -24,5 +24,5 @@ provider "aws" {
 
 # Bucket S3 para almacenar los datos de taxis de NY
 resource "aws_s3_bucket" "taxi_data_lake" {
-  bucket = "nyc-taxi-data-lake"
+  bucket = var.bucket_name
 }

@@ -1,19 +1,48 @@
+import os
+import urllib.request
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, hour, month, date_format, round as spark_round, avg, count
+    avg, col, count, date_format, hour, month, round as spark_round, unix_timestamp
 )
-from pyspark.sql.functions import unix_timestamp
-import os
 
 BASE_PATH = os.environ.get("DATA_BASE_PATH", ".")
+S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "http://localhost:4566")
 
-spark = SparkSession.builder.appName("taxi_transform").getOrCreate()
+# Elimina http:// o https:// si vienen en la variable de entorno
+S3_ENDPOINT_CLEAN = S3_ENDPOINT.replace("http://", "").replace("https://", "")
+
+# 1. Crear el bucket en LocalStack PRIMERO
+try:
+    req = urllib.request.Request(f"{S3_ENDPOINT}/nyc-taxi-data-lake", method="PUT")
+    urllib.request.urlopen(req)
+    print("Bucket creado o ya existente.")
+except Exception as e:
+    print(f"Aviso al crear bucket: {e}")
+
+# 2. Sesión de Spark
+spark = SparkSession.builder \
+    .appName("taxi_transform") \
+    .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.4") \
+    .config("spark.hadoop.fs.s3a.endpoint", S3_ENDPOINT_CLEAN) \
+    .config("spark.hadoop.fs.s3a.access.key", "mock_access_key") \
+    .config("spark.hadoop.fs.s3a.secret.key", "mock_secret_key") \
+    .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+    .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
+    .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+    .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
+    .config("spark.hadoop.fs.s3a.endpoint.region", "us-east-1") \
+    .config("spark.hadoop.fs.s3a.connection.timeout", "60000") \
+    .config("spark.hadoop.fs.s3a.connection.establish.timeout", "60000") \
+    .config("spark.hadoop.fs.s3a.threads.keepalivetime", "60") \
+    .config("spark.hadoop.fs.s3a.paging.maximum", "1000") \
+    .config("spark.hadoop.fs.s3a.multipart.purge.age", "86400") \
+    .getOrCreate()
+
 spark.sparkContext.setLogLevel("ERROR")
 
-#------------------- CARGA (los 12 meses) -------------------
+# 3. Carga y Limpieza
 df = spark.read.parquet(f"{BASE_PATH}/data/raw/")
 
-#------------------- LIMPIEZA -------------------
 df_clean = df.filter(
     (col("trip_distance") > 0) &
     (col("fare_amount") > 0) &
@@ -22,7 +51,7 @@ df_clean = df.filter(
     (col("tpep_dropoff_datetime").isNotNull())
 )
 
-#------------------- COLUMNAS DERIVADAS -------------------
+# 4. Columnas derivadas
 df_enriched = df_clean \
     .withColumn("pickup_month", month("tpep_pickup_datetime")) \
     .withColumn("pickup_hour", hour("tpep_pickup_datetime")) \
@@ -37,16 +66,7 @@ df_enriched = df_clean \
         )
     )
 
-#------------------- VALIDACIÓN -------------------
-df_enriched.select(
-    "pickup_hour",
-    "pickup_day",
-    "trip_duration_min",
-    "fare_amount",
-    "tip_amount"
-).show(10)
-
-# --- AGREGACIÓN: ingresos, propinas y duración por hora y día ---
+# 5. Agregación (sin .show())
 summary = df_enriched.groupBy("pickup_month", "pickup_day", "pickup_hour").agg(
     spark_round(avg("fare_amount"), 2).alias("avg_fare"),
     spark_round(avg("tip_amount"), 2).alias("avg_tip"),
@@ -54,11 +74,9 @@ summary = df_enriched.groupBy("pickup_month", "pickup_day", "pickup_hour").agg(
     count("*").alias("total_trips")
 ).orderBy("pickup_month", "pickup_day", "pickup_hour")
 
-summary.show(20)
-
-print("Filas originales: ", df.count())
-print("Filas después de la limpieza: ", df_clean.count())
-
-# --- ESCRITURA: guardar resultado como Parquet particionado ---
+# 6. Escrituras directas
 summary.write.mode("overwrite").parquet(f"{BASE_PATH}/data/processed/summary_by_month")
-print("Escritura completada.")
+print("Escritura local completada.")
+
+summary.write.mode("overwrite").parquet("s3a://nyc-taxi-data-lake/summary_by_month")
+print("Escritura a S3 completada.")

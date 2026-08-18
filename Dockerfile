@@ -7,4 +7,4 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER airflow
-RUN pip install --no-cache-dir pyspark==4.1.2
+RUN pip install --no-cache-dir pyspark==4.1.2 boto3

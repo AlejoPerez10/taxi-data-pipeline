@@ -7,4 +7,7 @@ logs/
 .terraform/
 *.tfstate
 *.tfstate.backup
-.terraform.lock.hcl
+localstack-data/
+*.log
+terraform/
+*.info
