@@ -3,8 +3,8 @@ from datetime import datetime
 
 @dag(
     dag_id="taxi_data_pipeline",
-    schedule="0 6 1 * *",          # por ahora manual, no automático
-    start_date=datetime(2025, 1, 1),
+    schedule="0 6 1 * *",
+    start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["taxi", "pyspark", "portfolio"],
 )
