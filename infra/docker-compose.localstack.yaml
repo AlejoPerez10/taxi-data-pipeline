@@ -7,3 +7,4 @@ services:
     environment:
       - SERVICES=s3
       - DEBUG=1
+    restart: always

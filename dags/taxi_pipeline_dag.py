@@ -11,8 +11,13 @@ from datetime import datetime
 def taxi_pipeline():
 
     @task.bash
-    def run_transform():
-        return "DATA_BASE_PATH=/opt/airflow S3_ENDPOINT=http://localstack:4566 python /opt/airflow/transformation/transform.py"
+    def run_transform(data_interval_start=None):
+        return f"""
+        DATA_BASE_PATH=/opt/airflow \
+        S3_ENDPOINT=http://localstack:4566 \
+        PROCESS_MONTH={data_interval_start.strftime('%Y-%m')} \
+        python /opt/airflow/transformation/transform.py
+        """
 
     run_transform()
 

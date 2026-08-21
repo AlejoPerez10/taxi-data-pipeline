@@ -8,6 +8,7 @@ from pyspark.sql.functions import (
 #Variables de entorno
 BASE_PATH = os.environ.get("DATA_BASE_PATH", ".")
 S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "http://localhost:4566")
+PROCESS_MONTH = os.environ.get("PROCESS_MONTH")
 
 # Elimina http:// o https:// si vienen en la variable de entorno
 S3_ENDPOINT_CLEAN = S3_ENDPOINT.replace("http://", "").replace("https://", "")
@@ -43,7 +44,9 @@ spark = (
 spark.sparkContext.setLogLevel("ERROR") # Solamente muestra los logs de erroes y no toda la información de ejecución 
 
 # 3. Carga
-df = spark.read.parquet(f"{BASE_PATH}/data/raw/") # Lee los datos RAW
+df = spark.read.parquet( # Lee los datos RAW
+    f"{BASE_PATH}/data/raw/yellow_tripdata_{PROCESS_MONTH}.parquet"
+)
 
 # 4. Liempieza
 df_clean = df.filter( # Eliminar los registros que no cumplen las siguiente condiciones
@@ -77,9 +80,11 @@ summary = df_enriched.groupBy("pickup_month", "pickup_day", "pickup_hour").agg(
 ).orderBy("pickup_month", "pickup_day", "pickup_hour")
 
 # 7. Guarda el resultado localmente
-summary.write.mode("overwrite").parquet(f"{BASE_PATH}/data/processed/summary_by_month")
-print("Escritura local completada.")
+output_path = f"{BASE_PATH}/data/processed/summary_by_month/{PROCESS_MONTH}" # Ruta para guardar el parquet ya procesado.
+summary.write.mode("overwrite").parquet(output_path) # Para que se reescriba lo que ya tiene guardado cada vez que se haga.
+print(f"Escritura local completada: {PROCESS_MONTH}") # Imprimir en consola el check al completarse exitosamente.
 
 # 8. Guarda el resultado en S3/LocalStack
-summary.write.mode("overwrite").parquet("s3a://nyc-taxi-data-lake/summary_by_month")
-print("Escritura a S3 completada.")
+s3_output_path = f"s3a://nyc-taxi-data-lake/summary_by_month/{PROCESS_MONTH}"
+summary.write.mode("overwrite").parquet(s3_output_path)
+print(f"Escritura a S3 completada: {PROCESS_MONTH}")
